@@ -4123,6 +4123,16 @@ SRST
     to issuing the migrate\_incoming to allow the migration to begin.
 ERST
 
+DEF("fingerprint", HAS_ARG, QEMU_OPTION_fingerprint, \
+    "-fingerprint socketpath\n" \
+    "                prepare for incoming fingerprint migration, \n" \
+    "                listen on socket unix path\n",
+    QEMU_ARCH_ALL)
+SRST
+``-fingerprint socketpath``
+    Prepare for incoming migration, listen on a given unix socket.
+ERST
+
 DEF("only-migratable", 0, QEMU_OPTION_only_migratable, \
     "-only-migratable     allow only migratable devices\n", QEMU_ARCH_ALL)
 SRST

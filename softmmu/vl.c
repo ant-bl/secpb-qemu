@@ -2882,6 +2882,7 @@ void qemu_init(int argc, char **argv, char **envp)
     const char *cpu_option;
     const char *vga_model = NULL;
     const char *incoming = NULL;
+    const char *fingerprint = NULL;
     bool userconfig = true;
     bool nographic = false;
     int display_remote = 0;
@@ -3659,6 +3660,9 @@ void qemu_init(int argc, char **argv, char **envp)
                     runstate_set(RUN_STATE_INMIGRATE);
                 }
                 incoming = optarg;
+                break;
+            case QEMU_OPTION_fingerprint:
+                fingerprint = optarg;
                 break;
             case QEMU_OPTION_only_migratable:
                 only_migratable = 1;
