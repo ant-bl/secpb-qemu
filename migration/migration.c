@@ -657,11 +657,30 @@ static bool postcopy_try_recover(QEMUFile *f)
     return false;
 }
 
+#define MAX_FINGERPRINT_SIZE 1024
+
 static void process_incoming_migration_fingerprint_co(void *opaque)
 {
     QEMUFile *f = opaque;
+    char *buffer;
+    int idx;
+    MigrationIncomingState *mis = migration_incoming_get_current();
+
     puts("=== process_incoming_migration_fingerprint_co ===");
 
+    buffer = g_malloc0(MAX_FINGERPRINT_SIZE);
+
+    for (idx = 0; idx < MAX_FINGERPRINT_SIZE - 1; idx++) {
+        int b = qemu_get_byte(f);
+        if (b == 0) {
+            break;
+        }
+        buffer[idx] = b;
+    }
+
+    printf("buffer=%s\n", buffer);
+
+    g_free(buffer);
     qemu_fclose(f);
 }
 
