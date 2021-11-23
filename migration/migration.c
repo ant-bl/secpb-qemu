@@ -425,7 +425,8 @@ void migrate_add_address(SocketAddress *address)
     addrs->value = QAPI_CLONE(SocketAddress, address);
 }
 
-void qemu_start_incoming_migration(const char *uri, Error **errp)
+void qemu_start_incoming_migration(const char *uri,
+                                    const char *fingerprint_path, Error **errp)
 {
     const char *p = NULL;
 
@@ -1979,7 +1980,7 @@ void migrate_del_blocker(Error *reason)
     migration_blockers = g_slist_remove(migration_blockers, reason);
 }
 
-void qmp_migrate_incoming(const char *uri, Error **errp)
+void qmp_migrate_incoming(const char *uri, const char *fingerprint_path, Error **errp)
 {
     Error *local_err = NULL;
     static bool once = true;
@@ -1993,7 +1994,7 @@ void qmp_migrate_incoming(const char *uri, Error **errp)
         return;
     }
 
-    qemu_start_incoming_migration(uri, &local_err);
+    qemu_start_incoming_migration(uri, fingerprint_path, &local_err);
 
     if (local_err) {
         error_propagate(errp, local_err);
@@ -2003,7 +2004,7 @@ void qmp_migrate_incoming(const char *uri, Error **errp)
     once = false;
 }
 
-void qmp_migrate_recover(const char *uri, Error **errp)
+void qmp_migrate_recover(const char *uri, const char *fingerprint_path, Error **errp)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
 
@@ -2024,7 +2025,7 @@ void qmp_migrate_recover(const char *uri, Error **errp)
      * only re-setup the migration stream and poke existing migration
      * to continue using that newly established channel.
      */
-    qemu_start_incoming_migration(uri, errp);
+    qemu_start_incoming_migration(uri, fingerprint_path, errp);
 }
 
 void qmp_migrate_pause(Error **errp)

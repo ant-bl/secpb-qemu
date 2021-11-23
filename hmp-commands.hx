@@ -946,8 +946,8 @@ ERST
 
     {
         .name       = "migrate_incoming",
-        .args_type  = "uri:s",
-        .params     = "uri",
+        .args_type  = "uri:s,fingerprint_socket_path:s",
+        .params     = "uri [fingerprint_socket_path]",
         .help       = "Continue an incoming migration from an -incoming defer",
         .cmd        = hmp_migrate_incoming,
     },
@@ -960,8 +960,8 @@ ERST
 
     {
         .name       = "migrate_recover",
-        .args_type  = "uri:s",
-        .params     = "uri",
+        .args_type  = "uri:s,fingerprint_socket_path:s",
+        .params     = "uri [fingerprint_socket_path]",
         .help       = "Continue a paused incoming postcopy migration",
         .cmd        = hmp_migrate_recover,
     },

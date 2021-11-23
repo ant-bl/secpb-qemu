@@ -4496,7 +4496,7 @@ void qemu_init(int argc, char **argv, char **envp)
 
     if (incoming) {
         Error *local_err = NULL;
-        qemu_start_incoming_migration(incoming, &local_err);
+        qemu_start_incoming_migration(incoming, fingerprint, &local_err);
         if (local_err) {
             error_reportf_err(local_err, "-incoming %s: ", incoming);
             exit(1);
