@@ -25,6 +25,7 @@ softmmu_ss.add(files(
   'savevm.c',
   'socket.c',
   'tls.c',
+  'fingerprint.c',
 ))
 
 softmmu_ss.add(when: ['CONFIG_RDMA', rdma], if_true: files('rdma.c'))
