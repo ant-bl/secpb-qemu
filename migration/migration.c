@@ -56,6 +56,7 @@
 #include "net/announce.h"
 #include "qemu/queue.h"
 #include "multifd.h"
+#include "migration/fingerprint.h"
 
 #ifdef CONFIG_VFIO
 #include "hw/vfio/vfio-common.h"
@@ -661,6 +662,9 @@ static bool postcopy_try_recover(QEMUFile *f)
 
 static void process_incoming_migration_fingerprint_co(void *opaque)
 {
+    Error *errp = NULL;
+    Fingerprint *fingerprint;
+    QJSON *json;
     QEMUFile *f = opaque;
     char *buffer;
     int idx;
@@ -680,6 +684,16 @@ static void process_incoming_migration_fingerprint_co(void *opaque)
 
     printf("buffer=%s\n", buffer);
 
+    /* TODO handle errors */
+    fingerprint = fingerprint_parse(buffer, &errp);
+    if (fingerprint) {
+        json = fingerprint_to_json(fingerprint);
+        printf("finger: json=%s\n", qjson_get_str(json));
+    } else {
+        printf("Unable to parse card\n");
+    }
+
+    /* TODO free fingerprint */
     g_free(buffer);
     qemu_fclose(f);
 }
