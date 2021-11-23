@@ -288,6 +288,8 @@ void migration_fd_process_incoming(QEMUFile *f, Error **errp);
 void migration_ioc_process_incoming(QIOChannel *ioc, Error **errp);
 void migration_incoming_process(void);
 
+void migration_fingerprint_ioc_process_incoming(QIOChannel *ioc, Error **errp);
+
 bool  migration_has_all_channels(void);
 
 uint64_t migrate_max_downtime(void);

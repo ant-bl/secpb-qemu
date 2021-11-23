@@ -25,6 +25,8 @@ int socket_send_channel_destroy(QIOChannel *send);
 
 void socket_start_incoming_migration(const char *str, Error **errp);
 
+void socket_start_incoming_fingerprint_migration(const char *str, Error **errp);
+
 void socket_start_outgoing_migration(MigrationState *s, const char *str,
                                      Error **errp);
 #endif

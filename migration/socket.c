@@ -182,3 +182,53 @@ void socket_start_incoming_migration(const char *str, Error **errp)
     qapi_free_SocketAddress(saddr);
     error_propagate(errp, err);
 }
+
+static void socket_accept_incoming_fingerprint_migration(
+    QIONetListener *listener, QIOChannelSocket *cioc, gpointer opaque)
+{
+    qio_channel_set_name(QIO_CHANNEL(cioc),
+        "migration-fingerprint-socket-incoming");
+    migration_channel_process_fingerprint_incoming(QIO_CHANNEL(cioc));
+}
+
+static void
+socket_start_incoming_fingerprint_migration_internal(SocketAddress *saddr,
+                                         Error **errp)
+{
+    QIONetListener *listener = qio_net_listener_new();
+
+    qio_net_listener_set_name(listener,
+        "migration-fingerprint-socket-listener");
+
+    if (qio_net_listener_open_sync(listener, saddr, 1, errp) < 0) {
+        object_unref(OBJECT(listener));
+        return;
+    }
+
+    qio_net_listener_set_client_func_full(
+        listener,
+        socket_accept_incoming_fingerprint_migration,
+        NULL, NULL,
+        g_main_context_get_thread_default()
+    );
+}
+
+void socket_start_incoming_fingerprint_migration(const char *path, Error **errp)
+{
+    Error *err = NULL;
+    char const *protocol = "unix:";
+    char *uri;
+
+    uri = g_malloc(strlen(protocol) + strlen(path) + 1);
+    strcpy(uri, protocol);
+    strcat(uri, path);
+
+    SocketAddress *saddr = socket_parse(uri, &err);
+    g_free(uri);
+    if (!err) {
+        socket_start_incoming_fingerprint_migration_internal(saddr, &err);
+    }
+
+    qapi_free_SocketAddress(saddr);
+    error_propagate(errp, err);
+}

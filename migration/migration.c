@@ -437,6 +437,9 @@ void qemu_start_incoming_migration(const char *uri,
                strstart(uri, "unix:", NULL) ||
                strstart(uri, "vsock:", NULL)) {
         socket_start_incoming_migration(p ? p : uri, errp);
+        if (fingerprint_path != NULL) {
+            socket_start_incoming_fingerprint_migration(fingerprint_path, errp);
+        }
 #ifdef CONFIG_RDMA
     } else if (strstart(uri, "rdma:", &p)) {
         rdma_start_incoming_migration(p, errp);
@@ -652,6 +655,30 @@ static bool postcopy_try_recover(QEMUFile *f)
     }
 
     return false;
+}
+
+static void process_incoming_migration_fingerprint_co(void *opaque)
+{
+    QEMUFile *f = opaque;
+    puts("=== process_incoming_migration_fingerprint_co ===");
+
+    qemu_fclose(f);
+}
+
+void migration_fingerprint_ioc_process_incoming(QIOChannel *ioc, Error **errp)
+{
+    QEMUFile *f = qemu_fopen_channel_input(ioc);
+
+    printf("migration_fingerprint_ioc_process_incoming: QEMUFile=%p\n", f);
+
+    /* Non blocking for coroutine */
+    qemu_file_set_blocking(f, false);
+
+    Coroutine *co = qemu_coroutine_create(
+        process_incoming_migration_fingerprint_co, f
+    );
+
+    qemu_coroutine_enter(co);
 }
 
 void migration_fd_process_incoming(QEMUFile *f, Error **errp)
