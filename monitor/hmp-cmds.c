@@ -1603,9 +1603,10 @@ void hmp_migrate(Monitor *mon, const QDict *qdict)
     bool inc = qdict_get_try_bool(qdict, "inc", false);
     bool resume = qdict_get_try_bool(qdict, "resume", false);
     const char *uri = qdict_get_str(qdict, "uri");
+    const char *fpath = qdict_get_try_str(qdict, "fpath");
     Error *err = NULL;
 
-    qmp_migrate(uri, !!blk, blk, !!inc, inc,
+    qmp_migrate(uri, fpath, !!blk, blk, !!inc, inc,
                 false, false, true, resume, &err);
     if (err) {
         hmp_handle_error(mon, err);
