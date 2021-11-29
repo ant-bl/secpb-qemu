@@ -478,6 +478,12 @@ void hmp_info_migrate_parameters(Monitor *mon, const QDict *qdict)
         monitor_printf(mon, "%s: '%s'\n",
             MigrationParameter_str(MIGRATION_PARAMETER_TLS_AUTHZ),
             params->tls_authz);
+        monitor_printf(mon, "%s: '%s'\n",
+            MigrationParameter_str(MIGRATION_PARAMETER_FINGERPRINT_RAM_PATH),
+            params->fingerprint_ram_path);
+        monitor_printf(mon, "%s: '%s'\n",
+            MigrationParameter_str(MIGRATION_PARAMETER_FINGERPRINT_DISK_PATH),
+            params->fingerprint_disk_path);
 
         if (params->has_block_bitmap_mapping) {
             const BitmapMigrationNodeAliasList *bmnal;
@@ -1424,6 +1430,18 @@ void hmp_migrate_set_parameter(Monitor *mon, const QDict *qdict)
     case MIGRATION_PARAMETER_BLOCK_BITMAP_MAPPING:
         error_setg(&err, "The block-bitmap-mapping parameter can only be set "
                    "through QMP");
+        break;
+    case MIGRATION_PARAMETER_FINGERPRINT_RAM_PATH:
+        p->has_fingerprint_ram_path = true;
+        p->fingerprint_ram_path = g_new0(StrOrNull, 1);
+        p->fingerprint_ram_path->type = QTYPE_QSTRING;
+        visit_type_str(v, param, &p->fingerprint_ram_path->u.s, &err);
+        break;
+    case MIGRATION_PARAMETER_FINGERPRINT_DISK_PATH:
+        p->has_fingerprint_disk_path = true;
+        p->fingerprint_disk_path = g_new0(StrOrNull, 1);
+        p->fingerprint_disk_path->type = QTYPE_QSTRING;
+        visit_type_str(v, param, &p->fingerprint_disk_path->u.s, &err);
         break;
     default:
         assert(0);

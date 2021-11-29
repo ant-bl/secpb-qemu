@@ -957,6 +957,18 @@ MigrationParameters *qmp_query_migrate_parameters(Error **errp)
                        s->parameters.block_bitmap_mapping);
     }
 
+    if (s->parameters.has_fingerprint_ram_path) {
+        params->has_fingerprint_ram_path = true;
+        params->fingerprint_ram_path =
+            g_strdup(s->parameters.fingerprint_ram_path);
+    }
+
+    if (s->parameters.has_fingerprint_disk_path) {
+        params->has_fingerprint_disk_path = true;
+        params->fingerprint_disk_path =
+            g_strdup(s->parameters.fingerprint_disk_path);
+    }
+
     return params;
 }
 
@@ -1541,6 +1553,23 @@ static void migrate_params_test_apply(MigrateSetParameters *params,
         dest->has_block_bitmap_mapping = true;
         dest->block_bitmap_mapping = params->block_bitmap_mapping;
     }
+
+    if (params->has_fingerprint_ram_path) {
+        if (params->fingerprint_ram_path->type == QTYPE_QSTRING) {
+            dest->has_fingerprint_ram_path = true;
+            dest->fingerprint_ram_path = params->fingerprint_ram_path->u.s;
+        } else {
+            dest->has_fingerprint_ram_path = false;
+        }
+    }
+    if (params->has_fingerprint_disk_path) {
+        if (params->fingerprint_disk_path->type == QTYPE_QSTRING) {
+            dest->has_fingerprint_disk_path = true;
+            dest->fingerprint_disk_path = params->fingerprint_disk_path->u.s;
+        } else {
+            dest->has_fingerprint_disk_path = false;
+        }
+    }
 }
 
 static void migrate_params_apply(MigrateSetParameters *params, Error **errp)
@@ -1662,6 +1691,32 @@ static void migrate_params_apply(MigrateSetParameters *params, Error **errp)
         s->parameters.block_bitmap_mapping =
             QAPI_CLONE(BitmapMigrationNodeAliasList,
                        params->block_bitmap_mapping);
+    }
+
+    if (params->has_fingerprint_ram_path) {
+        if (s->parameters.has_fingerprint_ram_path) {
+            g_free(s->parameters.fingerprint_ram_path);
+        }
+        if (params->fingerprint_ram_path->type == QTYPE_QSTRING) {
+            s->parameters.fingerprint_ram_path =
+                g_strdup(params->fingerprint_ram_path->u.s);
+            s->parameters.has_fingerprint_ram_path = true;
+        } else {
+            s->parameters.has_fingerprint_ram_path = false;
+        }
+    }
+
+    if (params->has_fingerprint_disk_path) {
+        if (s->parameters.fingerprint_disk_path) {
+            g_free(s->parameters.fingerprint_disk_path);
+        }
+        if (params->fingerprint_disk_path->type == QTYPE_QSTRING) {
+            s->parameters.fingerprint_disk_path =
+                g_strdup(params->fingerprint_disk_path->u.s);
+            s->parameters.has_fingerprint_disk_path = true;
+        } else {
+            s->parameters.has_fingerprint_disk_path = false;
+        }
     }
 }
 
@@ -2040,7 +2095,8 @@ void migrate_del_blocker(Error *reason)
     migration_blockers = g_slist_remove(migration_blockers, reason);
 }
 
-void qmp_migrate_incoming(const char *uri, const char *fingerprint_path, Error **errp)
+void qmp_migrate_incoming(const char *uri, const char *fingerprint_path,
+                          Error **errp)
 {
     Error *local_err = NULL;
     static bool once = true;
@@ -2064,7 +2120,8 @@ void qmp_migrate_incoming(const char *uri, const char *fingerprint_path, Error *
     once = false;
 }
 
-void qmp_migrate_recover(const char *uri, const char *fingerprint_path, Error **errp)
+void qmp_migrate_recover(const char *uri, const char *fingerprint_path,
+                         Error **errp)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
 
@@ -3873,6 +3930,13 @@ static void migration_instance_finalize(Object *obj)
     qemu_sem_destroy(&ms->postcopy_pause_rp_sem);
     qemu_sem_destroy(&ms->rp_state.rp_sem);
     error_free(ms->error);
+
+    if (params->has_fingerprint_disk_path) {
+        g_free(params->fingerprint_disk_path);
+    }
+    if (params->has_fingerprint_ram_path) {
+        g_free(params->fingerprint_ram_path);
+    }
 }
 
 static void migration_instance_init(Object *obj)
