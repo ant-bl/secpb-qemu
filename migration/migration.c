@@ -427,7 +427,8 @@ void migrate_add_address(SocketAddress *address)
 }
 
 void qemu_start_incoming_migration(const char *uri,
-                                    const char *fingerprint_path, Error **errp)
+                                   const char *fingerprint_path,
+                                   Error **errp)
 {
     const char *p = NULL;
 
@@ -2095,7 +2096,8 @@ void migrate_del_blocker(Error *reason)
     migration_blockers = g_slist_remove(migration_blockers, reason);
 }
 
-void qmp_migrate_incoming(const char *uri, const char *fingerprint_path,
+void qmp_migrate_incoming(const char *uri,
+                          const char *fingerprint_path,
                           Error **errp)
 {
     Error *local_err = NULL;
@@ -2120,7 +2122,8 @@ void qmp_migrate_incoming(const char *uri, const char *fingerprint_path,
     once = false;
 }
 
-void qmp_migrate_recover(const char *uri, const char *fingerprint_path,
+void qmp_migrate_recover(const char *uri,
+                         const char *fingerprint_path,
                          Error **errp)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
@@ -2283,15 +2286,15 @@ void qmp_migrate(const char *uri, char const * fingerprint_path,
     if (strstart(uri, "tcp:", &p) ||
         strstart(uri, "unix:", NULL) ||
         strstart(uri, "vsock:", NULL)) {
-        socket_start_outgoing_migration(s, p ? p : uri, &local_err);
+        socket_start_outgoing_migration(s, p ? p : uri, fingerprint_path, &local_err);
 #ifdef CONFIG_RDMA
     } else if (strstart(uri, "rdma:", &p)) {
         rdma_start_outgoing_migration(s, p, &local_err);
 #endif
     } else if (strstart(uri, "exec:", &p)) {
-        exec_start_outgoing_migration(s, p, &local_err);
+        exec_start_outgoing_migration(s, p, fingerprint_path, &local_err);
     } else if (strstart(uri, "fd:", &p)) {
-        fd_start_outgoing_migration(s, p, &local_err);
+        fd_start_outgoing_migration(s, p, fingerprint_path, &local_err);
     } else {
         error_setg(errp, QERR_INVALID_PARAMETER_VALUE, "uri",
                    "a valid migration protocol");

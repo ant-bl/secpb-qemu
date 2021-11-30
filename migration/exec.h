@@ -22,5 +22,5 @@
 void exec_start_incoming_migration(const char *host_port, Error **errp);
 
 void exec_start_outgoing_migration(MigrationState *s, const char *host_port,
-                                   Error **errp);
+                                   const char *fingerprint_path, Error **errp);
 #endif

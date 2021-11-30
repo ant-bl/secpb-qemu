@@ -36,5 +36,6 @@ QIOChannelTLS *migration_tls_client_create(MigrationState *s,
 void migration_tls_channel_connect(MigrationState *s,
                                    QIOChannel *ioc,
                                    const char *hostname,
+                                   const char *fingerprint_path,
                                    Error **errp);
 #endif

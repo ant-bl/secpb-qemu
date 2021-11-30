@@ -26,7 +26,7 @@
 #include "io/channel-socket.h"
 #include "io/net-listener.h"
 #include "trace.h"
-
+#include "io/channel-fingerprint.h"
 
 struct SocketOutgoingArgs {
     SocketAddress *saddr;
@@ -53,6 +53,7 @@ int socket_send_channel_destroy(QIOChannel *send)
 struct SocketConnectData {
     MigrationState *s;
     char *hostname;
+    char *fingerprint_path;
 };
 
 static void socket_connect_data_free(void *opaque)
@@ -62,6 +63,7 @@ static void socket_connect_data_free(void *opaque)
         return;
     }
     g_free(data->hostname);
+    g_free(data->fingerprint_path);
     g_free(data);
 }
 
@@ -77,19 +79,22 @@ static void socket_outgoing_migration(QIOTask *task,
     } else {
         trace_migration_socket_outgoing_connected(data->hostname);
     }
-    migration_channel_connect(data->s, sioc, data->hostname, err);
+    migration_channel_connect(data->s, sioc, data->hostname,
+                              data->fingerprint_path, err);
     object_unref(OBJECT(sioc));
 }
 
 static void
 socket_start_outgoing_migration_internal(MigrationState *s,
                                          SocketAddress *saddr,
+                                         const char *fingerprint_path,
                                          Error **errp)
 {
     QIOChannelSocket *sioc = qio_channel_socket_new();
     struct SocketConnectData *data = g_new0(struct SocketConnectData, 1);
 
     data->s = s;
+    data->fingerprint_path = g_strdup(fingerprint_path);
 
     /* in case previous migration leaked it */
     qapi_free_SocketAddress(outgoing_args.saddr);
@@ -108,14 +113,15 @@ socket_start_outgoing_migration_internal(MigrationState *s,
                                      NULL);
 }
 
-void socket_start_outgoing_migration(MigrationState *s,
-                                     const char *str,
-                                     Error **errp)
+void socket_start_outgoing_migration(MigrationState *s, const char *str,
+                                     const char *fingerprint_path, Error **errp)
 {
     Error *err = NULL;
     SocketAddress *saddr = socket_parse(str, &err);
     if (!err) {
-        socket_start_outgoing_migration_internal(s, saddr, &err);
+        socket_start_outgoing_migration_internal(
+            s, saddr, fingerprint_path, &err
+        );
     }
     error_propagate(errp, err);
 }

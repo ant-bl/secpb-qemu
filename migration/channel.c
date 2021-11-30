@@ -79,10 +79,10 @@ void migration_channel_process_incoming(QIOChannel *ioc)
 void migration_channel_connect(MigrationState *s,
                                QIOChannel *ioc,
                                const char *hostname,
+                               const char *fingerprint_path,
                                Error *error)
 {
     QIOChannelFingerprint *fioc = NULL;
-    Error *err = NULL;
     char *ram_path = s->parameters.has_fingerprint_ram_path ?
         s->parameters.fingerprint_ram_path : NULL;
     char *disk_path = s->parameters.has_fingerprint_disk_path ?
@@ -91,17 +91,13 @@ void migration_channel_connect(MigrationState *s,
     trace_migration_set_outgoing_channel(
         ioc, object_get_typename(OBJECT(ioc)), hostname, error);
 
-    if (ram_path != NULL || disk_path != NULL) {
-        fioc = qio_channel_fingerprint_new(ioc, ram_path, disk_path, &err);
-        ioc = QIO_CHANNEL(fioc);
-    }
-
     if (!error) {
         if (s->parameters.tls_creds &&
             *s->parameters.tls_creds &&
             !object_dynamic_cast(OBJECT(ioc),
                                  TYPE_QIO_CHANNEL_TLS)) {
-            migration_tls_channel_connect(s, ioc, hostname, &error);
+            migration_tls_channel_connect(s, ioc, hostname, fingerprint_path,
+                                          &error);
 
             if (!error) {
                 /*
@@ -113,6 +109,12 @@ void migration_channel_connect(MigrationState *s,
                 return;
             }
         } else {
+            if (ram_path || disk_path || fingerprint_path) {
+                fioc = qio_channel_fingerprint_new(ioc, fingerprint_path,
+                                                ram_path, disk_path, &error);
+                ioc = QIO_CHANNEL(fioc);
+            }
+
             QEMUFile *f = qemu_fopen_channel_output(ioc);
 
             qemu_mutex_lock(&s->qemu_file_lock);

@@ -27,6 +27,22 @@
 #include "qapi/error.h"
 #include "trace.h"
 
+struct TLSConnectData {
+    MigrationState *s;
+    char *fingerprint_path;
+};
+
+static void migration_tls_data_free(void *opaque)
+{
+    struct TLSConnectData *data = opaque;
+    if (!data) {
+        return;
+    }
+    g_free(data->fingerprint_path);
+    g_free(data);
+}
+
+
 static QCryptoTLSCreds *
 migration_tls_get_creds(MigrationState *s,
                         QCryptoTLSCredsEndpoint endpoint,
@@ -111,7 +127,7 @@ void migration_tls_channel_process_incoming(MigrationState *s,
 static void migration_tls_outgoing_handshake(QIOTask *task,
                                              gpointer opaque)
 {
-    MigrationState *s = opaque;
+    struct TLSConnectData *data = opaque;
     QIOChannel *ioc = QIO_CHANNEL(qio_task_get_source(task));
     Error *err = NULL;
 
@@ -120,7 +136,7 @@ static void migration_tls_outgoing_handshake(QIOTask *task,
     } else {
         trace_migration_tls_outgoing_handshake_complete();
     }
-    migration_channel_connect(s, ioc, NULL, err);
+    migration_channel_connect(data->s, ioc, NULL, data->fingerprint_path, err);
     object_unref(OBJECT(ioc));
 }
 
@@ -155,9 +171,14 @@ QIOChannelTLS *migration_tls_client_create(MigrationState *s,
 void migration_tls_channel_connect(MigrationState *s,
                                    QIOChannel *ioc,
                                    const char *hostname,
+                                   const char *fingerprint_path,
                                    Error **errp)
 {
     QIOChannelTLS *tioc;
+    struct TLSConnectData *data = g_new0(struct TLSConnectData, 1);
+
+    data->s = s;
+    data->fingerprint_path = g_strdup(fingerprint_path);
 
     tioc = migration_tls_client_create(s, ioc, hostname, errp);
     if (!tioc) {
@@ -170,7 +191,7 @@ void migration_tls_channel_connect(MigrationState *s,
     qio_channel_set_name(QIO_CHANNEL(tioc), "migration-tls-outgoing");
     qio_channel_tls_handshake(tioc,
                               migration_tls_outgoing_handshake,
-                              s,
-                              NULL,
+                              data,
+                              migration_tls_data_free,
                               NULL);
 }

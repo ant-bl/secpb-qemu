@@ -23,7 +23,8 @@
 #include "trace.h"
 
 
-void fd_start_outgoing_migration(MigrationState *s, const char *fdname, Error **errp)
+void fd_start_outgoing_migration(MigrationState *s, const char *fdname,
+                                 const char *fingerprint_path, Error **errp)
 {
     QIOChannel *ioc;
     int fd = monitor_get_fd(monitor_cur(), fdname, errp);
@@ -39,7 +40,7 @@ void fd_start_outgoing_migration(MigrationState *s, const char *fdname, Error **
     }
 
     qio_channel_set_name(QIO_CHANNEL(ioc), "migration-fd-outgoing");
-    migration_channel_connect(s, ioc, NULL, NULL);
+    migration_channel_connect(s, ioc, NULL, fingerprint_path, *errp);
     object_unref(OBJECT(ioc));
 }
 

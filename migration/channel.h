@@ -25,5 +25,6 @@ void migration_channel_process_incoming(QIOChannel *ioc);
 void migration_channel_connect(MigrationState *s,
                                QIOChannel *ioc,
                                const char *hostname,
+                               const char *fingerprint_path,
                                Error *error_in);
 #endif

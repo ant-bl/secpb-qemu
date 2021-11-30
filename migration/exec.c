@@ -25,7 +25,8 @@
 #include "trace.h"
 
 
-void exec_start_outgoing_migration(MigrationState *s, const char *command, Error **errp)
+void exec_start_outgoing_migration(MigrationState *s, const char *command,
+                                   const char *fingerprint_path, Error **errp)
 {
     QIOChannel *ioc;
     const char *argv[] = { "/bin/sh", "-c", command, NULL };
@@ -39,7 +40,7 @@ void exec_start_outgoing_migration(MigrationState *s, const char *command, Error
     }
 
     qio_channel_set_name(ioc, "migration-exec-outgoing");
-    migration_channel_connect(s, ioc, NULL, NULL);
+    migration_channel_connect(s, ioc, NULL, fingerprint_path, *errp);
     object_unref(OBJECT(ioc));
 }
 

@@ -8,8 +8,9 @@ struct QIOChannelFingerprint {
 };
 
 QIOChannelFingerprint *
-qio_channel_fingerprint_new(QIOChannel *ioc, char const *ram_path,
-                            char const *disk_path, Error **errp) {
+qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
+                            char const *ram_path, char const *disk_path,
+                            Error **errp) {
 
     QIOChannelFingerprint *fioc;
 
