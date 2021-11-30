@@ -18,7 +18,7 @@
 #include "trace.h"
 #include "qapi/error.h"
 #include "io/channel-tls.h"
-
+#include "io/channel-fingerprint.h"
 
 /**
  * @migration_channel_process_fingerprint_incoming - Create new incoming
@@ -68,7 +68,6 @@ void migration_channel_process_incoming(QIOChannel *ioc)
     }
 }
 
-
 /**
  * @migration_channel_connect - Create new outgoing migration channel
  *
@@ -82,8 +81,20 @@ void migration_channel_connect(MigrationState *s,
                                const char *hostname,
                                Error *error)
 {
+    QIOChannelFingerprint *fioc = NULL;
+    Error *err = NULL;
+    char *ram_path = s->parameters.has_fingerprint_ram_path ?
+        s->parameters.fingerprint_ram_path : NULL;
+    char *disk_path = s->parameters.has_fingerprint_disk_path ?
+        s->parameters.fingerprint_disk_path : NULL;
+
     trace_migration_set_outgoing_channel(
         ioc, object_get_typename(OBJECT(ioc)), hostname, error);
+
+    if (ram_path != NULL || disk_path != NULL) {
+        fioc = qio_channel_fingerprint_new(ioc, ram_path, disk_path, &err);
+        ioc = QIO_CHANNEL(fioc);
+    }
 
     if (!error) {
         if (s->parameters.tls_creds &&
@@ -93,7 +104,8 @@ void migration_channel_connect(MigrationState *s,
             migration_tls_channel_connect(s, ioc, hostname, &error);
 
             if (!error) {
-                /* tls_channel_connect will call back to this
+                /*
+                 * tls_channel_connect will call back to this
                  * function after the TLS handshake,
                  * so we mustn't call migrate_fd_connect until then
                  */

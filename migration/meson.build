@@ -6,6 +6,7 @@ migration_files = files(
   'vmstate.c',
   'qemu-file-channel.c',
   'qemu-file.c',
+  'fingerprint-file.c',
   'qjson.c',
 )
 softmmu_ss.add(migration_files)

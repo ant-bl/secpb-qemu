@@ -8,6 +8,7 @@ io_ss.add(files(
   'channel-util.c',
   'channel-watch.c',
   'channel-websock.c',
+  'channel-fingerprint.c',
   'channel.c',
   'dns-resolver.c',
   'net-listener.c',
