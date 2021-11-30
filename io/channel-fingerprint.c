@@ -7,6 +7,29 @@ struct QIOChannelFingerprint {
     QIOChannel *inner;
 };
 
+static struct iovec *iovec_copy(struct iovec const *src, int iovcnt)
+{
+    int i;
+    struct iovec *dst = g_new(struct iovec, iovcnt);
+
+    for (i = 0; i < iovcnt; i++) {
+        dst[i].iov_base = g_memdup(src[i].iov_base, src[i].iov_len);
+        dst[i].iov_len = src[i].iov_len;
+    }
+
+    return dst;
+}
+
+static void iovec_free(struct iovec *io, int iovcnt)
+{
+    int i;
+
+    for (i = 0; i < iovcnt; i++) {
+        g_free(io[i].iov_base);
+    }
+    g_free(io);
+}
+
 QIOChannelFingerprint *
 qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
                             char const *ram_path, char const *disk_path,
@@ -47,8 +70,11 @@ static ssize_t qio_channel_fingerprint_writev(QIOChannel *ioc,
 {
     ssize_t ret;
     QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(ioc);
+    struct iovec *copy = iovec_copy(iov, niov);
 
-    ret = qio_channel_writev(fioc->inner, iov, niov, errp);
+    ret = qio_channel_writev(fioc->inner, copy, niov, errp);
+
+    iovec_free(copy, niov);
 
     return ret;
 }
