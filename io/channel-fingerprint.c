@@ -116,6 +116,19 @@ static int log_full_iovec(QIOChannelFingerprint *fioc,
         }
     }
 
+    if (fioc->must_log & LOG_FINGERPRINT) {
+        int i;
+        for (i = 0; i < niov; i++) {
+            if (!SHA1_Update(&fioc->hash_context,
+                            copy[i].iov_base,
+                            copy[i].iov_len)) {
+                error_setg_errno(errp, errno,
+                                 "unable to update SHA fingerprint");
+                return -1;
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -153,7 +166,9 @@ qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
 
     if (fingerprint_path != NULL) {
         fioc->must_log |= LOG_FINGERPRINT;
-        SHA1_Init(&fioc->hash_context);
+        if (!SHA1_Init(&fioc->hash_context)) {
+            goto err_sha;
+        }
     }
 
     fioc->inner = ioc;
@@ -164,12 +179,18 @@ qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
 err_open:
     object_unref(fioc);
     return NULL;
+
+err_sha:
+    error_setg_errno(errp, errno, "unable to update SHA fingerprint");
+    return NULL;
 }
 
 bool qio_channel_fingerprint_get_hash(QIOChannelFingerprint *fioc,
                                       unsigned char buf[SHA_DIGEST_LENGTH])
 {
-    SHA1_Final(buf, &fioc->hash_context);
+    if (!SHA1_Final(buf, &fioc->hash_context)) {
+        return false;
+    }
     return true;
 }
 
@@ -210,13 +231,6 @@ static ssize_t qio_channel_fingerprint_writev(QIOChannel *ioc,
     }
 
     ret = qio_channel_writev(fioc->inner, copy, niov, errp);
-
-    if (!(fioc->must_log & LOG_FINGERPRINT)) {
-        int i;
-        for (i = 0; i < niov; i++) {
-            SHA1_Update(&fioc->hash_context, iov[i].iov_base, iov[i].iov_len);
-        }
-    }
 
     iovec_free(copy, niov);
 
