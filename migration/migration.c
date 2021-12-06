@@ -1695,9 +1695,7 @@ static void migrate_params_apply(MigrateSetParameters *params, Error **errp)
     }
 
     if (params->has_fingerprint_ram_path) {
-        if (s->parameters.has_fingerprint_ram_path) {
-            g_free(s->parameters.fingerprint_ram_path);
-        }
+        g_free(s->parameters.fingerprint_ram_path);
         if (params->fingerprint_ram_path->type == QTYPE_QSTRING) {
             s->parameters.fingerprint_ram_path =
                 g_strdup(params->fingerprint_ram_path->u.s);
@@ -1708,9 +1706,7 @@ static void migrate_params_apply(MigrateSetParameters *params, Error **errp)
     }
 
     if (params->has_fingerprint_disk_path) {
-        if (s->parameters.fingerprint_disk_path) {
-            g_free(s->parameters.fingerprint_disk_path);
-        }
+        g_free(s->parameters.fingerprint_disk_path);
         if (params->fingerprint_disk_path->type == QTYPE_QSTRING) {
             s->parameters.fingerprint_disk_path =
                 g_strdup(params->fingerprint_disk_path->u.s);
