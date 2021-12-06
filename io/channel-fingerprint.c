@@ -2,9 +2,20 @@
 #include "io/channel-fingerprint.h"
 #include "qapi/error.h"
 
+enum Log {
+    LOG_RAM = 0b1,
+    LOG_DISK = 0b10,
+    LOG_FINGERPRINT = 0b100
+};
+
 struct QIOChannelFingerprint {
     QIOChannel parent;
     QIOChannel *inner;
+    enum Log must_log;
+    FILE *ram_file;
+    int64_t length;
+    bool has_length;
+    SHA_CTX hash_context;
 };
 
 static struct iovec *iovec_copy(struct iovec const *src, int iovcnt)
@@ -30,20 +41,136 @@ static void iovec_free(struct iovec *io, int iovcnt)
     g_free(io);
 }
 
+static FILE *log_open(char const *path, Error **errp)
+{
+    FILE *file = NULL;
+
+    file = fopen(path, "w");
+    if (file == NULL) {
+        error_reportf_err(
+            *errp, "Unable to open dump file: %s error: %s",
+            path, strerror(errno)
+        );
+    }
+
+    return file;
+}
+
+static int log_write_full_iovec(FILE *out, struct iovec const *io,
+                                int iovcnt, Error **errp) {
+
+    int i;
+
+    for (i = 0; i < iovcnt; i++) {
+        if (fwrite(io[i].iov_base, 1, io[i].iov_len, out) != io[i].iov_len) {
+            error_reportf_err(
+                *errp, "Unable to dump file error %s", strerror(errno)
+            );
+            return -1;
+        }
+    }
+
+    fflush(out);
+
+    return 0;
+}
+
+static int log_write_size_iovec(FILE *out, struct iovec const *io,
+                                int iovcnt, ssize_t len, Error **errp) {
+
+    int i;
+    long int sum = 0;
+
+    for (i = 0; i < iovcnt && len != 0; i++) {
+        size_t write_size;
+
+        if (len > io[i].iov_len) {
+            write_size = io[i].iov_len;
+            len -= io[i].iov_len;
+        } else {
+            write_size = len;
+            len = 0;
+        }
+
+        if (fwrite(io[i].iov_base, 1, write_size, out) != write_size) {
+            error_reportf_err(
+                *errp, "Unable to dump file error %s", strerror(errno)
+            );
+            return -1;
+        }
+        sum += write_size;
+    }
+
+    fflush(out);
+
+    return sum;
+}
+
+static int log_full_iovec(QIOChannelFingerprint *fioc,
+                          struct iovec *copy, size_t niov,
+                          Error **errp)
+{
+    if (fioc->must_log & LOG_RAM) {
+        if (log_write_full_iovec(fioc->ram_file, copy, niov, errp) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int log_size_iovec(QIOChannelFingerprint *fioc,
+                          struct iovec const *copy, size_t niov,
+                          ssize_t size, Error **errp)
+{
+    if (fioc->must_log & LOG_RAM) {
+        if (log_write_size_iovec(fioc->ram_file, copy, niov,
+                                 size, errp) != size) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 QIOChannelFingerprint *
 qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
                             char const *ram_path, char const *disk_path,
                             Error **errp) {
 
-    QIOChannelFingerprint *fioc;
+    QIOChannelFingerprint *fioc = NULL;
 
     fioc = QIO_CHANNEL_FINGERPRINT(object_new(TYPE_QIO_CHANNEL_FINGERPRINT));
+    fioc->has_length = false;
+
+    if (ram_path != NULL) {
+        fioc->ram_file = log_open(ram_path, errp);
+        if (fioc->ram_file == NULL) {
+            goto err_open;
+        }
+        fioc->must_log |= LOG_RAM;
+    }
+
+    if (fingerprint_path != NULL) {
+        fioc->must_log |= LOG_FINGERPRINT;
+        SHA1_Init(&fioc->hash_context);
+    }
 
     fioc->inner = ioc;
-
     object_ref(OBJECT(ioc));
 
     return fioc;
+
+err_open:
+    object_unref(fioc);
+    return NULL;
+}
+
+bool qio_channel_fingerprint_get_hash(QIOChannelFingerprint *fioc,
+                                      unsigned char buf[SHA_DIGEST_LENGTH])
+{
+    SHA1_Final(buf, &fioc->hash_context);
+    return true;
 }
 
 static ssize_t qio_channel_fingerprint_readv(QIOChannel *ioc,
@@ -57,6 +184,11 @@ static ssize_t qio_channel_fingerprint_readv(QIOChannel *ioc,
     QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(ioc);
 
     ret = qio_channel_readv(fioc->inner, iov, niov, errp);
+
+    if (ret > 0 && fioc->must_log != 0 &&
+        log_size_iovec(fioc, iov, niov, ret, errp) != 0) {
+        return -1;
+    }
 
     return ret;
 }
@@ -72,11 +204,27 @@ static ssize_t qio_channel_fingerprint_writev(QIOChannel *ioc,
     QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(ioc);
     struct iovec *copy = iovec_copy(iov, niov);
 
+    if (fioc->must_log != 0 &&
+        log_full_iovec(fioc, copy, niov, errp) != 0) {
+        goto err_log;
+    }
+
     ret = qio_channel_writev(fioc->inner, copy, niov, errp);
+
+    if (!(fioc->must_log & LOG_FINGERPRINT)) {
+        int i;
+        for (i = 0; i < niov; i++) {
+            SHA1_Update(&fioc->hash_context, iov[i].iov_base, iov[i].iov_len);
+        }
+    }
 
     iovec_free(copy, niov);
 
     return ret;
+
+err_log:
+    iovec_free(copy, niov);
+    return -1;
 }
 
 static int qio_channel_fingerprint_set_blocking(QIOChannel *ioc,
@@ -170,12 +318,16 @@ static void qio_channel_fingerprint_class_init(ObjectClass *klass,
 
 static void qio_channel_fingerprint_init(Object *obj)
 {
-    QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(obj);
 }
 
 static void qio_channel_fingerprint_finalize(Object *obj)
 {
-    QIOChannelFingerprint *ioc = QIO_CHANNEL_FINGERPRINT(obj);
+    QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(obj);
+
+    if (fioc->ram_file != NULL) {
+        fclose(fioc->ram_file);
+        fioc->ram_file = NULL;
+    }
 }
 
 static const TypeInfo qio_channel_fingerprint_info = {

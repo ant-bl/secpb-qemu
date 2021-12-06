@@ -3,6 +3,7 @@
 #define QIO_CHANNEL_FINGERPRINT_H
 
 #include <stdio.h>
+#include <openssl/sha.h>
 
 #include "io/channel.h"
 #include "qom/object.h"
@@ -14,5 +15,8 @@ QIOChannelFingerprint *
 qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
                             char const *ram_path, char const *disk_path,
                             Error **errp);
+
+bool qio_channel_fingerprint_get_hash(QIOChannelFingerprint *fioc,
+                                      unsigned char hash[SHA_DIGEST_LENGTH]);
 
 #endif

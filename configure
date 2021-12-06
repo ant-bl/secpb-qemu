@@ -5725,6 +5725,9 @@ fi
 
 ##########################################
 
+#OpenSSL
+QEMU_LDFLAGS="-lssl -lcrypto $QEMU_LDFLAGS"
+
 # Exclude --warn-common with TSan to suppress warnings from the TSan libraries.
 if test "$solaris" = "no" && test "$tsan" = "no"; then
     if $ld --version 2>/dev/null | grep "GNU ld" >/dev/null 2>/dev/null ; then
