@@ -6,7 +6,6 @@ migration_files = files(
   'vmstate.c',
   'qemu-file-channel.c',
   'qemu-file.c',
-  'fingerprint-file.c',
   'qjson.c',
 )
 softmmu_ss.add(migration_files)
@@ -26,7 +25,7 @@ softmmu_ss.add(files(
   'savevm.c',
   'socket.c',
   'tls.c',
-  'fingerprint.c',
+  'fingerprint.c'
 ))
 
 softmmu_ss.add(when: ['CONFIG_RDMA', rdma], if_true: files('rdma.c'))
