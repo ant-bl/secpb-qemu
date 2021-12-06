@@ -280,6 +280,11 @@ struct MigrationState {
      * This save hostname when out-going migration starts
      */
     char *hostname;
+
+    /*
+     * This save fingerprint destination (unix socket or file)
+     */
+    char *fingerprint_path;
 };
 
 void migrate_set_state(int *state, int old_state, int new_state);

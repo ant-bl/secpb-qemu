@@ -68,6 +68,36 @@ void migration_channel_process_incoming(QIOChannel *ioc)
     }
 }
 
+static bool migration_channel_setup_fingerprint(MigrationState *s,
+                                                char const *fingerprint_path,
+                                                QIOChannel **ioc,
+                                                Error **errp) {
+
+    QIOChannelFingerprint *fioc = NULL;
+    char *ram_path = s->parameters.has_fingerprint_ram_path ?
+        s->parameters.fingerprint_ram_path : NULL;
+    char *disk_path = s->parameters.has_fingerprint_disk_path ?
+        s->parameters.fingerprint_disk_path : NULL;
+
+    if (!ram_path & !disk_path & !fingerprint_path) {
+        return true;
+    }
+
+    if (fingerprint_path) {
+        s->fingerprint_path = g_strdup(fingerprint_path);
+    }
+
+    fioc = qio_channel_fingerprint_new(*ioc, fingerprint_path,
+                                       ram_path, disk_path, errp);
+    if (!fioc) {
+        return false;
+    }
+
+    *ioc = QIO_CHANNEL(fioc);
+
+    return true;
+}
+
 /**
  * @migration_channel_connect - Create new outgoing migration channel
  *
@@ -82,12 +112,6 @@ void migration_channel_connect(MigrationState *s,
                                const char *fingerprint_path,
                                Error *error)
 {
-    QIOChannelFingerprint *fioc = NULL;
-    char *ram_path = s->parameters.has_fingerprint_ram_path ?
-        s->parameters.fingerprint_ram_path : NULL;
-    char *disk_path = s->parameters.has_fingerprint_disk_path ?
-        s->parameters.fingerprint_disk_path : NULL;
-
     trace_migration_set_outgoing_channel(
         ioc, object_get_typename(OBJECT(ioc)), hostname, error);
 
@@ -109,13 +133,16 @@ void migration_channel_connect(MigrationState *s,
                 return;
             }
         } else {
-            if (ram_path || disk_path || fingerprint_path) {
-                fioc = qio_channel_fingerprint_new(ioc, fingerprint_path,
-                                                ram_path, disk_path, &error);
-                ioc = QIO_CHANNEL(fioc);
+            QEMUFile *f = NULL;
+            QIOChannel *nioc = ioc;
+
+            if (!migration_channel_setup_fingerprint(
+                s, fingerprint_path, &nioc, &error)
+            ) {
+                return;
             }
 
-            QEMUFile *f = qemu_fopen_channel_output(ioc);
+            f = qemu_fopen_channel_output(nioc);
 
             qemu_mutex_lock(&s->qemu_file_lock);
             s->to_dst_file = f;
