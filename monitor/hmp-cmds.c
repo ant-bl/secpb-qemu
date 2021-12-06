@@ -1202,7 +1202,7 @@ void hmp_migrate_incoming(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
     const char *uri = qdict_get_str(qdict, "uri");
-    const char *path = qdict_get_try_str(qdict, "fingerprint_socket_path");
+    const char *path = qdict_get_try_str(qdict, "fpath");
 
     qmp_migrate_incoming(uri, path, &err);
 
@@ -1213,7 +1213,7 @@ void hmp_migrate_recover(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;
     const char *uri = qdict_get_str(qdict, "uri");
-    const char *path = qdict_get_try_str(qdict, "fingerprint_socket_path");
+    const char *path = qdict_get_try_str(qdict, "fpath");
 
     qmp_migrate_recover(uri, path, &err);
 
