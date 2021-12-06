@@ -57,6 +57,8 @@
 #include "qemu/queue.h"
 #include "multifd.h"
 #include "migration/fingerprint.h"
+#include "io/channel-fingerprint.h"
+#include "io/channel-socket.h"
 
 #ifdef CONFIG_VFIO
 #include "hw/vfio/vfio-common.h"
@@ -3619,6 +3621,139 @@ bool migration_rate_limit(void)
     return urgent;
 }
 
+static bool fingerprint_outgoing_migration_file(char const *fingerprint_path,
+                                                struct QJSON *qjson,
+                                                Error **errp) {
+
+    char const *json = qjson_get_str(qjson);
+    size_t len = strlen(json) - 1;
+    FILE *out;
+
+    out = fopen(fingerprint_path, "w");
+    if (out == NULL) {
+        goto error_open;
+    }
+
+    if (fwrite(json, 1, len, out) != len) {
+        goto error_write;
+    }
+
+    fclose(out);
+
+    return true;
+
+error_open:
+    error_setg_errno(errp, errno, "failed to open fingerprint file");
+    return false;
+
+error_write:
+    fclose(out);
+    error_setg_errno(errp, errno, "failed to write to fingerprint file");
+    return false;
+}
+
+static bool fingerprint_outgoing_migration_socket_unix(
+    char const *fingerprint_path, struct QJSON *qjson, Error **errp)
+{
+    SocketAddress *saddr = NULL;
+    QIOChannelSocket *sioc = NULL;
+    char const *json = qjson_get_str(qjson);
+
+    saddr = socket_parse(fingerprint_path, errp);
+    if (!saddr) {
+        goto error;
+    }
+
+    sioc = qio_channel_socket_new();
+
+    if (qio_channel_socket_connect_sync(sioc, saddr, errp) < 0) {
+        goto error;
+    }
+
+    if (qio_channel_write_all(QIO_CHANNEL(sioc),
+                              json, strlen(json),
+                              errp) < 0) {
+        goto error;
+    }
+
+    qio_channel_close(QIO_CHANNEL(sioc), NULL);
+    object_unref(OBJECT(sioc));
+    g_free(saddr);
+
+    return true;
+
+error:
+    if (sioc) {
+        qio_channel_close(QIO_CHANNEL(sioc), NULL);
+        object_unref(OBJECT(sioc));
+    }
+
+    g_free(saddr);
+
+    return false;
+}
+
+static bool fingerprint_outgoing_migration(MigrationState *s, Error ** errp)
+{
+    void *opaque = qemu_get_opaque(s->to_dst_file);
+    QIOChannel *ioc = QIO_CHANNEL(opaque);
+    QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(ioc);
+    char uuid[UUID_FMT_LEN + 1] = {'\0'};
+    Fingerprint *f = NULL;
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    char hash_buf[SHA_DIGEST_LENGTH * 2 + 1] = {'\0'};
+    struct QJSON *qjson = NULL;
+    int i;
+
+    if (qemu_uuid_set) {
+        qemu_uuid_unparse(&qemu_uuid, uuid);
+    }
+
+    if (!qio_channel_fingerprint_get_hash(fioc, hash)) {
+        error_setg_errno(errp, errno, "failed to get to fingerprint hash");
+        return false;
+    }
+
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf(&hash_buf[i * 2], "%02x", hash[i]);
+    }
+
+    /* TODO LAN is hard codded */
+    f = fingerprint_alloc(uuid, "lan", "sha1", hash_buf);
+
+    qjson = fingerprint_to_json(f);
+
+    if (strstart(s->fingerprint_path, "unix:", NULL)) {
+        if (!fingerprint_outgoing_migration_socket_unix(
+            s->fingerprint_path, qjson, errp)
+        ) {
+            goto error_outgoing;
+        }
+    } else {
+        if (!fingerprint_outgoing_migration_file(
+            s->fingerprint_path, qjson, errp)
+        ) {
+            goto error_outgoing;
+        }
+    }
+
+    fingerprint_free(f);
+    qjson_destroy(qjson);
+
+    return true;
+
+error_outgoing:
+    if (f != NULL) {
+        fingerprint_free(f);
+    }
+
+    if (qjson != NULL) {
+        qjson_destroy(qjson);
+    }
+
+    return false;
+}
+
 /*
  * Master migration thread on the source VM.
  * It drives the migration and pumps the data down the outgoing channel.
@@ -3716,6 +3851,20 @@ static void *migration_thread(void *opaque)
 
     trace_migration_thread_after_loop();
     migration_iteration_finish(s);
+
+    if (s->state == MIGRATION_STATUS_COMPLETED) {
+        Error *error = NULL;
+
+        if (s->fingerprint_path) {
+            if (!fingerprint_outgoing_migration(s, &error) || error != NULL) {
+                migrate_set_error(s, error);
+                migrate_set_state(&s->state, MIGRATION_STATUS_COMPLETED,
+                      MIGRATION_STATUS_FAILED);
+            }
+        }
+        g_free(s->fingerprint_path);
+    }
+
     object_unref(OBJECT(s));
     rcu_unregister_thread();
     return NULL;
