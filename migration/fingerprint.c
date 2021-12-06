@@ -1,4 +1,41 @@
+#include <stdbool.h>
+
 #include "migration/fingerprint.h"
+#include "qapi/error.h"
+
+void fingerprint_free(Fingerprint *fingerprint)
+{
+    if (fingerprint) {
+        g_free(fingerprint->uuid);
+        g_free(fingerprint->migration_type);
+        g_free(fingerprint->memory.hash);
+        g_free(fingerprint->memory.algorithm);
+        g_free(fingerprint->disk.hash);
+        g_free(fingerprint->disk.algorithm);
+    }
+}
+
+static bool storage_parse(QDict *dict, Storage * storage, char const * name,
+                          Error **errp)
+{
+
+    storage->algorithm = g_strdup(qdict_get_try_str(dict, "algorithm"));
+    if (storage->algorithm == NULL) {
+        error_setg(errp, "%s algorithm is missing", name);
+        goto error;
+    }
+
+    storage->hash = g_strdup(qdict_get_try_str(dict, "hash"));
+    if (storage->hash == NULL) {
+        error_setg(errp, "%s hash is missing", name);
+        goto error;
+    }
+
+    return true;
+
+error:
+    return false;
+}
 
 Fingerprint *fingerprint_parse(char const *buffer, Error **errp)
 {
@@ -15,38 +52,72 @@ Fingerprint *fingerprint_parse(char const *buffer, Error **errp)
 
     dict = qobject_to(QDict, object);
     if (dict == NULL) {
+        error_setg(errp, "unable to cast json object to dict");
         goto error;
     }
 
-    /* TODO handle missing invalid fields */
+    fingerprint->uuid = g_strdup(qdict_get_try_str(dict, "uuid"));
+    if (fingerprint->uuid == NULL) {
+        error_setg(errp, "unable to get VM uuid");
+        goto error;
+    }
 
-    fingerprint->uuid = qdict_get_str(dict, "uuid");
-    fingerprint->migration_type = qdict_get_str(dict, "migration_type");
+    fingerprint->migration_type = g_strdup(
+        qdict_get_try_str(dict, "migration_type")
+    );
+    if (fingerprint->migration_type == NULL) {
+        error_setg(errp, "unable to get VM migration_type");
+        goto error;
+    }
 
     dict = qdict_get_qdict(dict, "fingerprints");
     if (dict == NULL) {
+        error_setg(errp, "unable to get fingerprints dict");
         goto error;
     }
 
     dict = qdict_get_qdict(dict, "memory");
     if (dict == NULL) {
+        error_setg(errp, "unable to get memory dict");
         goto error;
     }
 
-    fingerprint->memory.algorithm = qdict_get_str(dict, "algorithm");
-    fingerprint->memory.hash = qdict_get_str(dict, "hash");
+    if (!storage_parse(dict, &fingerprint->memory, "memory", errp)) {
+        goto error;
+    }
 
     dict = qdict_get_qdict(dict, "disk");
     if (dict != NULL) {
-        fingerprint->disk.algorithm = qdict_get_str(dict, "algorithm");
-        fingerprint->disk.hash = qdict_get_str(dict, "hash");
+        if (!storage_parse(dict, &fingerprint->disk, "disk", errp)) {
+            goto error;
+        }
     }
 
     return fingerprint;
 
 error:
-    g_free(fingerprint);
+    fingerprint_free(fingerprint);
     return NULL;
+}
+
+Fingerprint *fingerprint_alloc(char const *uuid,
+                                char const *migration_type,
+                                char const *memory_algorithm,
+                                char const *memory_hash) {
+
+    Fingerprint *f = g_malloc0(sizeof(Fingerprint));
+
+    if (uuid) {
+        f->uuid = strdup(uuid);
+    } else {
+        f->uuid = strdup("");
+    }
+
+    f->migration_type = strdup(migration_type);
+    f->memory.algorithm = strdup(memory_algorithm);
+    f->memory.hash = strdup(memory_hash);
+
+    return f;
 }
 
 struct QJSON *fingerprint_to_json(Fingerprint const *fingerprint)

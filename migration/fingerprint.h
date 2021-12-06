@@ -11,18 +11,24 @@
 #include "migration/qjson.h"
 
 typedef struct {
-    char const *algorithm;
-    char const *hash;
+    char *algorithm;
+    char *hash;
 } Storage;
 
 typedef struct {
-    char const *uuid;
-    char const *migration_type;
+    char *uuid;
+    char *migration_type;
     Storage memory;
     Storage disk;
 } Fingerprint;
 
 Fingerprint *fingerprint_parse(char const *buffer, Error **errp);
+
+Fingerprint *fingerprint_alloc(char const *uuid, char const *migration_type,
+                               char const *memory_algorithm,
+                               char const *memory_hash);
+
+void fingerprint_free(Fingerprint *fingerprint);
 
 struct QJSON *fingerprint_to_json(Fingerprint const *fingerprint);
 
