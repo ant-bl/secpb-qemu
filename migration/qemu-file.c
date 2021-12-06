@@ -846,3 +846,8 @@ void qemu_file_set_blocking(QEMUFile *f, bool block)
         f->ops->set_blocking(f->opaque, block, NULL);
     }
 }
+
+void *qemu_get_opaque(QEMUFile *f)
+{
+    return f->opaque;
+}
