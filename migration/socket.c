@@ -130,18 +130,48 @@ static void socket_accept_incoming_migration(QIONetListener *listener,
                                              QIOChannelSocket *cioc,
                                              gpointer opaque)
 {
+    Error *error = NULL;
+    QIOChannel *ioc = NULL;
+    QIOChannelFingerprint *fioc = NULL;
+    MigrationState *s = migrate_get_current();
+    MigrationIncomingState *mis = migration_incoming_get_current();
+    char *ram_path = s->parameters.has_fingerprint_ram_path ?
+        s->parameters.fingerprint_ram_path : NULL;
+    char *disk_path = s->parameters.has_fingerprint_disk_path ?
+        s->parameters.fingerprint_disk_path : NULL;
+
     trace_migration_socket_incoming_accepted();
 
-    qio_channel_set_name(QIO_CHANNEL(cioc), "migration-socket-incoming");
-    migration_channel_process_incoming(QIO_CHANNEL(cioc));
+    ioc = QIO_CHANNEL(cioc);
+
+    if (mis->wait_for_fingerprint || ram_path || disk_path) {
+
+        fioc = qio_channel_fingerprint_new(
+            QIO_CHANNEL(cioc), mis->wait_for_fingerprint, ram_path, disk_path,
+            &error
+        );
+        if (!fioc) {
+            goto err;
+        }
+
+        qio_channel_set_name(QIO_CHANNEL(cioc), "migration-socket-incoming");
+        ioc = QIO_CHANNEL(fioc);
+    }
+
+    migration_channel_process_incoming(ioc);
 
     if (migration_has_all_channels()) {
         /* Close listening socket as its no longer needed */
         qio_net_listener_disconnect(listener);
         object_unref(OBJECT(listener));
     }
-}
 
+    return;
+err:
+    qio_net_listener_disconnect(listener);
+    object_unref(OBJECT(listener));
+    error_report_err(error);
+}
 
 static void
 socket_start_incoming_migration_internal(SocketAddress *saddr,
@@ -199,7 +229,7 @@ static void socket_accept_incoming_fingerprint(
 
 static void
 socket_start_incoming_fingerprint_internal(SocketAddress *saddr,
-                                                     Error **errp)
+                                           Error **errp)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
     QIONetListener *listener = qio_net_listener_new();
