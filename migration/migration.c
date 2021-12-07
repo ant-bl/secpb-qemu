@@ -444,7 +444,7 @@ void qemu_start_incoming_migration(const char *uri,
                strstart(uri, "unix:", NULL) ||
                strstart(uri, "vsock:", NULL)) {
         if (fingerprint_path != NULL) {
-            socket_start_incoming_fingerprint_migration(fingerprint_path, errp);
+            socket_start_incoming_fingerprint(fingerprint_path, errp);
         }
         socket_start_incoming_migration(p ? p : uri, errp);
 #ifdef CONFIG_RDMA
@@ -666,7 +666,7 @@ static bool postcopy_try_recover(QEMUFile *f)
 
 #define MAX_FINGERPRINT_SIZE 1024
 
-static void process_incoming_migration_fingerprint_co(void *opaque)
+static void process_incoming_fingerprint_co(void *opaque)
 {
     Error *errp = NULL;
     Fingerprint *fingerprint;
@@ -704,19 +704,14 @@ static void process_incoming_migration_fingerprint_co(void *opaque)
     qemu_fclose(f);
 }
 
-void migration_fingerprint_ioc_process_incoming(QIOChannel *ioc, Error **errp)
+void fingerprint_ioc_process_incoming(QIOChannel *ioc, Error **errp)
 {
     QEMUFile *f = qemu_fopen_channel_input(ioc);
-
-    printf("migration_fingerprint_ioc_process_incoming: QEMUFile=%p\n", f);
 
     /* Non blocking for coroutine */
     qemu_file_set_blocking(f, false);
 
-    Coroutine *co = qemu_coroutine_create(
-        process_incoming_migration_fingerprint_co, f
-    );
-
+    co = qemu_coroutine_create(process_incoming_fingerprint_co, f);
     qemu_coroutine_enter(co);
 }
 
@@ -3624,9 +3619,9 @@ bool migration_rate_limit(void)
     return urgent;
 }
 
-static bool fingerprint_outgoing_migration_file(char const *fingerprint_path,
-                                                struct QJSON *qjson,
-                                                Error **errp) {
+static bool process_outgoing_fingerprint_file(char const *fingerprint_path,
+                                              struct QJSON *qjson,
+                                              Error **errp) {
 
     char const *json = qjson_get_str(qjson);
     size_t len = strlen(json) - 1;
@@ -3655,8 +3650,9 @@ error_write:
     return false;
 }
 
-static bool fingerprint_outgoing_migration_socket_unix(
-    char const *fingerprint_path, struct QJSON *qjson, Error **errp)
+static bool process_outgoing_fingerprint_socket(char const *fingerprint_path,
+                                                struct QJSON *qjson,
+                                                Error **errp)
 {
     SocketAddress *saddr = NULL;
     QIOChannelSocket *sioc = NULL;
@@ -3696,7 +3692,7 @@ error:
     return false;
 }
 
-static bool fingerprint_outgoing_migration(MigrationState *s, Error ** errp)
+static bool process_outgoing_fingerprint(MigrationState *s, Error ** errp)
 {
     void *opaque = qemu_get_opaque(s->to_dst_file);
     QIOChannel *ioc = QIO_CHANNEL(opaque);
@@ -3727,15 +3723,13 @@ static bool fingerprint_outgoing_migration(MigrationState *s, Error ** errp)
     qjson = fingerprint_to_json(f);
 
     if (strstart(s->fingerprint_path, "unix:", NULL)) {
-        if (!fingerprint_outgoing_migration_socket_unix(
-            s->fingerprint_path, qjson, errp)
-        ) {
+        if (!process_outgoing_fingerprint_socket(s->fingerprint_path,
+                                                 qjson, errp)) {
             goto error_outgoing;
         }
     } else {
-        if (!fingerprint_outgoing_migration_file(
-            s->fingerprint_path, qjson, errp)
-        ) {
+        if (!process_outgoing_fingerprint_file(s->fingerprint_path,
+                                               qjson, errp)) {
             goto error_outgoing;
         }
     }
@@ -3859,7 +3853,7 @@ static void *migration_thread(void *opaque)
         Error *error = NULL;
 
         if (s->fingerprint_path) {
-            if (!fingerprint_outgoing_migration(s, &error) || error != NULL) {
+            if (!process_outgoing_fingerprint(s, &error) || error != NULL) {
                 migrate_set_error(s, error);
                 migrate_set_state(&s->state, MIGRATION_STATUS_COMPLETED,
                       MIGRATION_STATUS_FAILED);

@@ -189,16 +189,16 @@ void socket_start_incoming_migration(const char *str, Error **errp)
     error_propagate(errp, err);
 }
 
-static void socket_accept_incoming_fingerprint_migration(
+static void socket_accept_incoming_fingerprint(
     QIONetListener *listener, QIOChannelSocket *cioc, gpointer opaque)
 {
     qio_channel_set_name(QIO_CHANNEL(cioc),
         "migration-fingerprint-socket-incoming");
-    migration_channel_process_fingerprint_incoming(QIO_CHANNEL(cioc));
+    fingerprint_channel_process_incoming(QIO_CHANNEL(cioc));
 }
 
 static void
-socket_start_incoming_fingerprint_migration_internal(SocketAddress *saddr,
+socket_start_incoming_fingerprint_internal(SocketAddress *saddr,
                                                      Error **errp)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
@@ -216,13 +216,13 @@ socket_start_incoming_fingerprint_migration_internal(SocketAddress *saddr,
 
     qio_net_listener_set_client_func_full(
         listener,
-        socket_accept_incoming_fingerprint_migration,
+        socket_accept_incoming_fingerprint,
         NULL, NULL,
         g_main_context_get_thread_default()
     );
 }
 
-void socket_start_incoming_fingerprint_migration(const char *path, Error **errp)
+void socket_start_incoming_fingerprint(const char *path, Error **errp)
 {
     Error *err = NULL;
     char const *protocol = "unix:";
@@ -235,7 +235,7 @@ void socket_start_incoming_fingerprint_migration(const char *path, Error **errp)
     SocketAddress *saddr = socket_parse(uri, &err);
     g_free(uri);
     if (!err) {
-        socket_start_incoming_fingerprint_migration_internal(saddr, &err);
+        socket_start_incoming_fingerprint_internal(saddr, &err);
     }
 
     qapi_free_SocketAddress(saddr);

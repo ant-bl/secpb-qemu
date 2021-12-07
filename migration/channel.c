@@ -21,16 +21,16 @@
 #include "io/channel-fingerprint.h"
 
 /**
- * @migration_channel_process_fingerprint_incoming - Create new incoming
- * channel for fingerprint
+ * @fingerprint_channel_process_incoming - Create new incoming channel for
+ * fingerprint
  *
  * @ioc: Channel to which we are connecting
  */
-void migration_channel_process_fingerprint_incoming(QIOChannel *ioc)
+void fingerprint_channel_process_incoming(QIOChannel *ioc)
 {
     Error *local_err = NULL;
 
-    migration_fingerprint_ioc_process_incoming(ioc, &local_err);
+    fingerprint_ioc_process_incoming(ioc, &local_err);
 
     if (local_err) {
         error_report_err(local_err);

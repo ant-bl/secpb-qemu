@@ -18,7 +18,7 @@
 
 #include "io/channel.h"
 
-void migration_channel_process_fingerprint_incoming(QIOChannel *ioc);
+void fingerprint_channel_process_incoming(QIOChannel *ioc);
 
 void migration_channel_process_incoming(QIOChannel *ioc);
 
