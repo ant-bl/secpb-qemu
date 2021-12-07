@@ -181,6 +181,9 @@ void migration_object_init(void)
     qemu_mutex_init(&current_incoming->page_request_mutex);
     current_incoming->page_requested = g_tree_new(page_request_addr_cmp);
 
+    qemu_co_mutex_init(&current_incoming->fingerprint_mutex);
+    qemu_co_queue_init(&current_incoming->fingerprint_queue);
+
     if (!migration_object_check(current_migration, &err)) {
         error_report_err(err);
         exit(1);

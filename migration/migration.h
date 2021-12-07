@@ -22,6 +22,7 @@
 #include "io/channel.h"
 #include "net/announce.h"
 #include "qom/object.h"
+#include "migration/fingerprint.h"
 
 struct PostcopyBlocktimeContext;
 
@@ -123,6 +124,10 @@ struct MigrationIncomingState {
     QemuMutex page_request_mutex;
 
     bool wait_for_fingerprint;
+    Fingerprint *fingerprint;
+    Error *fingerprint_error;
+    CoMutex fingerprint_mutex;
+    CoQueue fingerprint_queue;
 };
 
 MigrationIncomingState *migration_incoming_get_current(void);
