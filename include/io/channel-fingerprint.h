@@ -14,7 +14,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(QIOChannelFingerprint, QIO_CHANNEL_FINGERPRINT)
 #define CHANNEL_FINGERPRINT_HASH_TYPE "sha1"
 
 QIOChannelFingerprint *
-qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
+qio_channel_fingerprint_new(QIOChannel *ioc, bool should_log_fingerprint,
                             char const *ram_path, char const *disk_path,
                             Error **errp);
 

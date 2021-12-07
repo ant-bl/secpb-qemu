@@ -87,7 +87,7 @@ static bool migration_channel_setup_fingerprint(MigrationState *s,
         s->fingerprint_path = g_strdup(fingerprint_path);
     }
 
-    fioc = qio_channel_fingerprint_new(*ioc, fingerprint_path,
+    fioc = qio_channel_fingerprint_new(*ioc, fingerprint_path != NULL,
                                        ram_path, disk_path, errp);
     if (!fioc) {
         return false;

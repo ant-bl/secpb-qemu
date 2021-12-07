@@ -165,7 +165,7 @@ static int log_size_iovec(QIOChannelFingerprint *fioc,
 }
 
 QIOChannelFingerprint *
-qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
+qio_channel_fingerprint_new(QIOChannel *ioc, bool should_log_fingerprint,
                             char const *ram_path, char const *disk_path,
                             Error **errp) {
 
@@ -182,7 +182,7 @@ qio_channel_fingerprint_new(QIOChannel *ioc, char const *fingerprint_path,
         fioc->must_log |= LOG_RAM;
     }
 
-    if (fingerprint_path != NULL) {
+    if (should_log_fingerprint) {
         fioc->must_log |= LOG_FINGERPRINT;
         if (!SHA1_Init(&fioc->hash_context)) {
             goto err_sha;
