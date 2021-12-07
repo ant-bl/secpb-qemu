@@ -143,6 +143,24 @@ static int log_size_iovec(QIOChannelFingerprint *fioc,
         }
     }
 
+    if (fioc->must_log & LOG_FINGERPRINT) {
+        int i;
+        ssize_t length, remaining;
+
+        for (i = 0, remaining = size; i < niov && remaining > 0; i++) {
+
+            length = copy[i].iov_len;
+            length = length > remaining ? remaining : length;
+
+            if (!SHA1_Update(&fioc->hash_context, copy[i].iov_base, length)) {
+                error_setg_errno(errp, errno,
+                                 "unable to update SHA fingerprint");
+                return -1;
+            }
+            remaining -= length;
+        }
+    }
+
     return 0;
 }
 
