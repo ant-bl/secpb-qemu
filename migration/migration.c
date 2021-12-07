@@ -3715,26 +3715,16 @@ static bool process_outgoing_fingerprint(MigrationState *s, Error ** errp)
     QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(ioc);
     char uuid[UUID_FMT_LEN + 1] = {'\0'};
     Fingerprint *f = NULL;
-    unsigned char hash[SHA_DIGEST_LENGTH];
-    char hash_buf[SHA_DIGEST_LENGTH * 2 + 1] = {'\0'};
     struct QJSON *qjson = NULL;
-    int i;
 
     if (qemu_uuid_set) {
         qemu_uuid_unparse(&qemu_uuid, uuid);
     }
 
-    if (!qio_channel_fingerprint_get_hash(fioc, hash)) {
-        error_setg_errno(errp, errno, "failed to get to fingerprint hash");
-        return false;
+    f = fingerprint_from_channel(uuid, "lan", fioc, errp);
+    if (f == NULL) {
+        goto error_fingerprint;
     }
-
-    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
-        sprintf(&hash_buf[i * 2], "%02x", hash[i]);
-    }
-
-    /* TODO LAN is hard codded */
-    f = fingerprint_alloc(uuid, "lan", "sha1", hash_buf);
 
     qjson = fingerprint_to_json(f);
 
@@ -3755,7 +3745,9 @@ static bool process_outgoing_fingerprint(MigrationState *s, Error ** errp)
 
     return true;
 
+error_fingerprint:
 error_outgoing:
+
     if (f != NULL) {
         fingerprint_free(f);
     }
