@@ -120,6 +120,29 @@ Fingerprint *fingerprint_alloc(char const *uuid,
     return f;
 }
 
+Fingerprint *fingerprint_from_channel(char const *uuid,
+                                      char const *migration_type,
+                                      QIOChannelFingerprint *fioc,
+                                      Error **errp) {
+
+    int i;
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    char hash_buf[SHA_DIGEST_LENGTH * 2 + 1] = {'\0'};
+
+    if (!qio_channel_fingerprint_get_hash(fioc, hash)) {
+        error_setg_errno(errp, errno, "failed to get to fingerprint hash");
+        return NULL;
+    }
+
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf(&hash_buf[i * 2], "%02x", hash[i]);
+    }
+
+    return fingerprint_alloc(
+        uuid, migration_type, CHANNEL_FINGERPRINT_HASH_TYPE, hash_buf
+    );
+}
+
 struct QJSON *fingerprint_to_json(Fingerprint const *fingerprint)
 {
     QJSON *json;

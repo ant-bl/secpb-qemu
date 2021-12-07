@@ -9,6 +9,7 @@
 #include "qapi/qmp/qjson.h"
 #include "qapi/qmp/qdict.h"
 #include "migration/qjson.h"
+#include "io/channel-fingerprint.h"
 
 typedef struct {
     char *algorithm;
@@ -24,9 +25,15 @@ typedef struct {
 
 Fingerprint *fingerprint_parse(char const *buffer, Error **errp);
 
-Fingerprint *fingerprint_alloc(char const *uuid, char const *migration_type,
+Fingerprint *fingerprint_alloc(char const *uuid,
+                               char const *migration_type,
                                char const *memory_algorithm,
                                char const *memory_hash);
+
+Fingerprint *fingerprint_from_channel(char const *uuid,
+                                      char const *migration_type,
+                                      QIOChannelFingerprint *fioc,
+                                      Error **errp);
 
 void fingerprint_free(Fingerprint *fingerprint);
 
