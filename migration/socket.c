@@ -199,8 +199,9 @@ static void socket_accept_incoming_fingerprint_migration(
 
 static void
 socket_start_incoming_fingerprint_migration_internal(SocketAddress *saddr,
-                                         Error **errp)
+                                                     Error **errp)
 {
+    MigrationIncomingState *mis = migration_incoming_get_current();
     QIONetListener *listener = qio_net_listener_new();
 
     qio_net_listener_set_name(listener,
@@ -210,6 +211,8 @@ socket_start_incoming_fingerprint_migration_internal(SocketAddress *saddr,
         object_unref(OBJECT(listener));
         return;
     }
+
+    mis->wait_for_fingerprint = true;
 
     qio_net_listener_set_client_func_full(
         listener,

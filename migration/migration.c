@@ -440,10 +440,10 @@ void qemu_start_incoming_migration(const char *uri,
     } else if (strstart(uri, "tcp:", &p) ||
                strstart(uri, "unix:", NULL) ||
                strstart(uri, "vsock:", NULL)) {
-        socket_start_incoming_migration(p ? p : uri, errp);
         if (fingerprint_path != NULL) {
             socket_start_incoming_fingerprint_migration(fingerprint_path, errp);
         }
+        socket_start_incoming_migration(p ? p : uri, errp);
 #ifdef CONFIG_RDMA
     } else if (strstart(uri, "rdma:", &p)) {
         rdma_start_incoming_migration(p, errp);
