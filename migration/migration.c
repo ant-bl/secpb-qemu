@@ -460,6 +460,45 @@ void qemu_start_incoming_migration(const char *uri,
     }
 }
 
+/**
+ * @brief Check if remote fingerprint equals the computed fingerprint. If the
+ * comparison fails the migration is stopped.
+ *
+ * @param mis The global incoming migration state
+ * @param errp The error.
+ * @return true The function has succeed.
+ * @return false The function has failed.
+ */
+static bool process_incoming_fingerprint(MigrationIncomingState *mis,
+                                         Error **errp)
+{
+    void *opaque = qemu_get_opaque(mis->from_src_file);
+    QIOChannel *ioc = QIO_CHANNEL(opaque);
+    QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(ioc);
+    char uuid[UUID_FMT_LEN + 1] = {'\0'};
+    Fingerprint *f = NULL;
+
+    if (qemu_uuid_set) {
+        qemu_uuid_unparse(&qemu_uuid, uuid);
+    }
+
+    /* TODO LAN is hard codded */
+    f = fingerprint_from_channel(uuid, "lan", fioc, errp);
+    if (f == NULL) {
+        goto error;
+    }
+
+    if (!fingerprint_is_equal(f, mis->fingerprint)) {
+        migrate_set_state(&mis->state, MIGRATION_STATUS_ACTIVE,
+                            MIGRATION_STATUS_FAILED);
+        autostart = false;
+    }
+    return true;
+
+error:
+    return false;
+}
+
 static void process_incoming_migration_bh(void *opaque)
 {
     Error *local_err = NULL;
@@ -494,6 +533,14 @@ static void process_incoming_migration_bh(void *opaque)
         error_report_err(local_err);
         autostart = false;
     }
+
+    if (mis->wait_for_fingerprint) {
+        if (!process_incoming_fingerprint(mis, &local_err)) {
+            error_report_err(local_err);
+            autostart = false;
+        }
+    }
+
     /* If global state section was not received or we are in running
        state, we need to obey autostart. Any other state is set with
        runstate_set. */
@@ -584,6 +631,29 @@ static void process_incoming_migration_co(void *opaque)
         error_report("load of migration failed: %s", strerror(-ret));
         goto fail;
     }
+
+    /* wait for external fingerprint incoming if needed */
+    if (mis->wait_for_fingerprint) {
+        /* lock access to fingerprint field */
+        qemu_co_mutex_lock(&mis->fingerprint_mutex);
+
+        /* we must wait a fingerprint */
+        if (mis->fingerprint == NULL && mis->fingerprint_error == NULL) {
+            /* wait for the fingerprint if no here */
+            qemu_co_queue_wait(
+                &mis->fingerprint_queue, &mis->fingerprint_mutex
+            );
+        }
+
+        if (mis->fingerprint_error != NULL) {
+            error_report_err(mis->fingerprint_error);
+            qemu_co_mutex_unlock(&mis->fingerprint_mutex);
+            goto fail;
+        } else {
+            qemu_co_mutex_unlock(&mis->fingerprint_mutex);
+        }
+    }
+
     mis->bh = qemu_bh_new(process_incoming_migration_bh, mis);
     qemu_bh_schedule(mis->bh);
     mis->migration_incoming_co = NULL;
@@ -664,8 +734,6 @@ static bool postcopy_try_recover(QEMUFile *f)
     return false;
 }
 
-#define MAX_FINGERPRINT_SIZE 1024
-
 static void process_incoming_fingerprint_co(void *opaque)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
@@ -683,7 +751,7 @@ static void process_incoming_fingerprint_co(void *opaque)
     }
 
     /* parse json fingerprint */
-    fingerprint = fingerprint_parse((char*)buffer, &error);
+    fingerprint = fingerprint_parse((char *)buffer, &error);
     if (!fingerprint) {
         goto error_unlocked;
     }
