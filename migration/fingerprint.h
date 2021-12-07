@@ -23,6 +23,8 @@ typedef struct {
     Storage disk;
 } Fingerprint;
 
+#define FINGERPRINT_MAX_SIZE 1024
+
 Fingerprint *fingerprint_parse(char const *buffer, Error **errp);
 
 Fingerprint *fingerprint_alloc(char const *uuid,
