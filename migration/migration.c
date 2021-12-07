@@ -668,44 +668,58 @@ static bool postcopy_try_recover(QEMUFile *f)
 
 static void process_incoming_fingerprint_co(void *opaque)
 {
-    Error *errp = NULL;
-    Fingerprint *fingerprint;
-    QJSON *json;
-    QEMUFile *f = opaque;
-    char *buffer;
-    int idx;
     MigrationIncomingState *mis = migration_incoming_get_current();
+    Error *error = NULL;
+    Fingerprint *fingerprint;
+    QEMUFile *f = opaque;
+    uint8_t *buffer;
 
-    puts("=== process_incoming_migration_fingerprint_co ===");
+    buffer = g_malloc0(FINGERPRINT_MAX_SIZE);
 
-    buffer = g_malloc0(MAX_FINGERPRINT_SIZE);
-
-    for (idx = 0; idx < MAX_FINGERPRINT_SIZE - 1; idx++) {
-        int b = qemu_get_byte(f);
-        if (b == 0) {
-            break;
-        }
-        buffer[idx] = b;
+    /* read json fingerprint */
+    if (qemu_get_buffer(f, buffer, FINGERPRINT_MAX_SIZE) == 0) {
+        error_setg(&error, "unable to read the fingerprint");
+        goto error_unlocked;
     }
 
-    printf("buffer=%s\n", buffer);
+    /* parse json fingerprint */
+    fingerprint = fingerprint_parse((char*)buffer, &error);
+    if (!fingerprint) {
+        goto error_unlocked;
+    }
 
-    /* TODO handle errors */
-    fingerprint = fingerprint_parse(buffer, &errp);
+    /* take lock that protects fingeprint */
+    qemu_co_mutex_lock(&mis->fingerprint_mutex);
+
+    /* push fingerprint to global state */
+    mis->fingerprint = fingerprint;
+    fingerprint = NULL;
+
+    /* wakeup the migration coroutine if neeeded */
+    qemu_co_queue_next(&mis->fingerprint_queue);
+
+    /* unlock mutex */
+    qemu_co_mutex_unlock(&mis->fingerprint_mutex);
+
+    g_free(buffer);
+    qemu_fclose(f);
+
+    return;
+
+error_locked:
+    qemu_co_mutex_unlock(&mis->fingerprint_mutex);
+error_unlocked:
+    mis->fingerprint_error = error;
     if (fingerprint) {
-        json = fingerprint_to_json(fingerprint);
-        printf("finger: json=%s\n", qjson_get_str(json));
-    } else {
-        printf("Unable to parse card\n");
+        fingerprint_free(fingerprint);
     }
-
-    /* TODO free fingerprint */
     g_free(buffer);
     qemu_fclose(f);
 }
 
 void fingerprint_ioc_process_incoming(QIOChannel *ioc, Error **errp)
 {
+    Coroutine *co = NULL;
     QEMUFile *f = qemu_fopen_channel_input(ioc);
 
     /* Non blocking for coroutine */
@@ -2282,7 +2296,9 @@ void qmp_migrate(const char *uri, char const * fingerprint_path,
     if (strstart(uri, "tcp:", &p) ||
         strstart(uri, "unix:", NULL) ||
         strstart(uri, "vsock:", NULL)) {
-        socket_start_outgoing_migration(s, p ? p : uri, fingerprint_path, &local_err);
+        socket_start_outgoing_migration(
+            s, p ? p : uri, fingerprint_path, &local_err
+        );
 #ifdef CONFIG_RDMA
     } else if (strstart(uri, "rdma:", &p)) {
         rdma_start_outgoing_migration(s, p, &local_err);
