@@ -477,6 +477,7 @@ static bool process_incoming_fingerprint(MigrationIncomingState *mis,
     QIOChannelFingerprint *fioc = QIO_CHANNEL_FINGERPRINT(ioc);
     char uuid[UUID_FMT_LEN + 1] = {'\0'};
     Fingerprint *f = NULL;
+    struct QJSON *local = NULL, *remote = NULL;
 
     if (qemu_uuid_set) {
         qemu_uuid_unparse(&qemu_uuid, uuid);
@@ -488,11 +489,27 @@ static bool process_incoming_fingerprint(MigrationIncomingState *mis,
         goto error;
     }
 
+    remote = fingerprint_to_json(mis->fingerprint);
+    local = fingerprint_to_json(f);
+
     if (!fingerprint_is_equal(f, mis->fingerprint)) {
         migrate_set_state(&mis->state, MIGRATION_STATUS_ACTIVE,
                             MIGRATION_STATUS_FAILED);
+        error_report("migration has failed "
+                     "the two fingerprints are different"
+                     "local: %s remote: %s",
+                     qjson_get_str(local), qjson_get_str(remote));
         autostart = false;
+    } else {
+        info_report("migration has succeed "
+                     "the two fingerprints are equals"
+                     "local: %s remote: %s",
+                     qjson_get_str(local), qjson_get_str(remote));
     }
+
+    qjson_destroy(remote);
+    qjson_destroy(local);
+
     return true;
 
 error:
