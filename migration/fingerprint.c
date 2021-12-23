@@ -101,9 +101,9 @@ error:
 }
 
 Fingerprint *fingerprint_alloc(char const *uuid,
-                                char const *migration_type,
-                                char const *memory_algorithm,
-                                char const *memory_hash) {
+                               char const *migration_type,
+                               char const *memory_algorithm,
+                               char const *memory_hash) {
 
     Fingerprint *f = g_malloc0(sizeof(Fingerprint));
 

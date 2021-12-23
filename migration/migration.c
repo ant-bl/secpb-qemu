@@ -755,9 +755,9 @@ static void process_incoming_fingerprint_co(void *opaque)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
     Error *error = NULL;
-    Fingerprint *fingerprint;
+    Fingerprint *fingerprint = NULL;
     QEMUFile *f = opaque;
-    uint8_t *buffer;
+    uint8_t *buffer = NULL;
 
     buffer = g_malloc0(FINGERPRINT_MAX_SIZE);
 
