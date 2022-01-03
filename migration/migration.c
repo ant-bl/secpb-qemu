@@ -791,13 +791,23 @@ static void process_incoming_fingerprint_co(void *opaque)
 
     return;
 
-error_locked:
-    qemu_co_mutex_unlock(&mis->fingerprint_mutex);
+/*error_locked:
+    qemu_co_mutex_unlock(&mis->fingerprint_mutex);*/
 error_unlocked:
+    /* take lock that protects fingeprint */
+    qemu_co_mutex_lock(&mis->fingerprint_mutex);
+
     mis->fingerprint_error = error;
     if (fingerprint) {
         fingerprint_free(fingerprint);
     }
+
+    /* wakeup the migration coroutine if neeeded */
+    qemu_co_queue_next(&mis->fingerprint_queue);
+
+    /* unlock mutex */
+    qemu_co_mutex_unlock(&mis->fingerprint_mutex);
+
     g_free(buffer);
     qemu_fclose(f);
 }
