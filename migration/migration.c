@@ -444,6 +444,9 @@ void qemu_start_incoming_migration(const char *uri,
                strstart(uri, "unix:", NULL) ||
                strstart(uri, "vsock:", NULL)) {
         if (fingerprint_path != NULL) {
+            if (strstart(fingerprint_path, "unix:", NULL)) {
+                fingerprint_path = &fingerprint_path[strlen("unix:")];
+            }
             socket_start_incoming_fingerprint(fingerprint_path, errp);
         }
         socket_start_incoming_migration(p ? p : uri, errp);
