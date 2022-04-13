@@ -1538,7 +1538,7 @@
 #
 # @uri: The Uniform Resource Identifier identifying the source or
 #       address to listen on
-# @socket_path: the path to be used for the fingerprint stream.  
+# @fingerprint_path: the path to be used for the fingerprint stream.
 #
 # Returns: nothing on success
 #
@@ -1562,7 +1562,7 @@
 # <- { "return": {} }
 #
 ##
-{ 'command': 'migrate-incoming', 'data': {'uri': 'str', 'socket_path': 'str' } }
+{ 'command': 'migrate-incoming', 'data': {'uri': 'str', 'fingerprint_path': 'str' } }
 
 ##
 # @xen-save-devices-state:
@@ -1752,7 +1752,7 @@
 # Provide a recovery migration stream URI.
 #
 # @uri: the URI to be used for the recovery of migration stream.
-# @socket_path: the path to be used for the fingerprint stream.
+# @fingerprint_path: the path to be used for the fingerprint stream.
 #
 # Returns: nothing.
 #
@@ -1765,7 +1765,7 @@
 # Since: 3.0
 ##
 { 'command': 'migrate-recover',
-  'data': { 'uri': 'str', 'socket_path': 'str' },
+  'data': { 'uri': 'str', 'fingerprint_path': 'str' },
   'allow-oob': true }
 
 ##
