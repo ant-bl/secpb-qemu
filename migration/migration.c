@@ -3738,7 +3738,7 @@ static bool process_outgoing_fingerprint_file(char const *fingerprint_path,
                                               Error **errp) {
 
     char const *json = qjson_get_str(qjson);
-    size_t len = strlen(json) - 1;
+    size_t len = strlen(json);
     FILE *out;
 
     out = fopen(fingerprint_path, "w");
